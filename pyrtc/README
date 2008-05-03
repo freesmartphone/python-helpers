@@ -1,0 +1,3 @@
+PyRTC -- an interface to your Real Time Clock.
+
+Needs Cython >= 0.9
