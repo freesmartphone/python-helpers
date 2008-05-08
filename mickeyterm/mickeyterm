@@ -3,9 +3,9 @@
 Mickey's own serial terminal. Based on miniterm.py.
 
 Additional Features:
-    * log input, output, or both to file
-    * org.freesmartphone.GSM.MUX support
     * readline support with command completion
+    * org.freesmartphone.GSM.MUX support
+    * log to file
 
 (C) 2002-2006 Chris Liechti <cliecht@gmx.net>
 (C) 2008 Michael 'Mickey' Lauer <mlauer@vanille-media.de>
@@ -305,6 +305,13 @@ class Terminal( object ):
     def setQuietMode( self, quiet ):
         self.quiet = quiet
 
+    def setLogging( self, logging ):
+        self.logging = logging
+        if self.logging is not None:
+            self.ilog = open( "%s/mickeyterm.%d.input" % ( logging, os.getpid() ), "w" )
+            self.olog = open( "%s/mickeyterm.%d.output" % ( logging, os.getpid() ), "w" )
+            self.alog = open( "%s/mickeyterm.%d.all" % ( logging, os.getpid() ), "w" )
+
     def run( self ):
         self.prepare()
         self.serial.open()
@@ -369,6 +376,9 @@ class Terminal( object ):
                     elif self.convert == "LF":
                         cmdline += "\n"
                     self.serial.write( cmdline )
+                    if self.logging:
+                        self.ilog.write( cmdline )
+                        self.alog.write( cmdline )
         else:
             #
             # old style
@@ -386,12 +396,19 @@ class Terminal( object ):
                         self.serial.write('\n')
                 else:
                     self.serial.write(c)
+                    if self.logging:
+                        self.ilog.write( cmdline )
+                        self.alog.write( cmdline )
 
     def reader( self ):
         while True:
             data = self.serial.read()
             sys.stdout.write(data)
             sys.stdout.flush()
+            if self.logging:
+                self.olog.write( data )
+                self.alog.write( data )
+
 
 if __name__ == "__main__":
     import optparse
@@ -407,10 +424,6 @@ Mickey's Terminal Program.""")
 
     parser.add_option("-b", "--baud", dest="baudrate", action="store", type='int',
         help="set baudrate, default 115200", default=115200)
-
-    parser.add_option("-c", "--char-by-char", dest="charbychar", action="store_true",
-        help="use character-by-character (traditional mode) instead of line-by-line (default)",
-        default=False)
 
     parser.add_option("", "--parity", dest="parity", action="store",
         help="set parity, one of [N, E, O], default=N", default='N')
@@ -445,6 +458,15 @@ Mickey's Terminal Program.""")
 
     parser.add_option("", "--dtr", dest="dtr_state", action="store", type='int',
         help="set initial DTR line state (possible values: 0, 1)", default=None)
+
+    # behaviour
+
+    parser.add_option("-c", "--char-by-char", dest="charbychar", action="store_true",
+        help="use character-by-character (traditional mode) instead of line-by-line (default)",
+        default=False)
+
+    parser.add_option("-l", "--logdir", dest="log",
+        help="enable logging to files, specifies directory" )
 
     parser.add_option("-q", "--quiet", dest="quiet", action="store_true",
         help="suppress non error messages", default=False)
@@ -485,8 +507,13 @@ Mickey's Terminal Program.""")
             port = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid() )
             assert port, "could not get path from muxer. need to supply explicit portname"
 
+    if options.log is not None:
+        if not os.path.isdir( options.log ):
+            parser.error("%s not a directory")
+
     inputmode = not options.charbychar
 
     t = Terminal( str(port), baudrate, options.rtscts, options.xonxoff, lineending, inputmode )
     t.setQuietMode( options.quiet )
+    t.setLogging( options.log )
     t.run()
