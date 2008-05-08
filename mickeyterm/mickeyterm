@@ -1,0 +1,405 @@
+#!/usr/bin/env python
+"""
+Mickey's own serial terminal. Based on miniterm.py.
+
+(C) 2002-2004 Chris Liechti <cliecht@gmx.net>
+(C) 2008 Michael 'Mickey' Lauer <mlauer@vanille-media.de>
+
+GPLv2 or later
+"""
+
+__version__ = "1.0.0"
+
+import sys, os, serial, threading, getopt
+
+def completer( text, state ):
+    """Return a possible readline completion"""
+    if state == 0:
+        line =""
+        #line = readline.get_line_buffer()
+        if " " in line:
+            allmatches = [ "(No Matches Available for commands.)" ]
+        else:
+            if not hasattr( completer, "commands" ):
+                allmatches = [ "(No matches available yet. Did AT+CLAC yet?)" ]
+            else:
+                allmatches = completer.commands
+
+        completer.matches = [ x for x in allmatches if x[:len(text)] == text ]
+    if len( completer.matches ) > state:
+        return completer.matches[state]
+    else:
+        return None
+
+commands = """
+AT+CACM
+AT+CAMM
+AT+CAOC
+AT+CBC
+AT+CBST
+AT+CCFC
+AT+CCUG
+AT+CCWA
+AT+CCWE
+AT+CEER
+AT+CFUN
+AT+CGACT
+AT+CGANS
+AT+CGATT
+AT+CGAUTO
+AT+CGCLASS
+AT+CGDATA
+AT+CGDCONT
+AT+CGEREP
+AT+CGMI
+AT+CGMM
+AT+CGMR
+AT+CGPADDR
+AT+CGQMIN
+AT+CGQREQ
+AT+CGREG
+AT+CGSMS
+AT+CGSN
+AT+CHLD
+AT+CHUP
+AT+CIMI
+AT+CLAC
+AT+CLAE
+AT+CLAN
+AT+CLCC
+AT+CLCK
+AT+CLIP
+AT+CDIP
+AT+CLIR
+AT+CLVL
+AT+CMEE
+AT+CMGC
+AT+CMGD
+AT+CMGF
+AT+CMGL
+AT+CMGR
+AT+CMGS
+AT+CMGW
+AT+CMOD
+AT+CMSS
+AT+CMMS
+AT+CMUT
+AT+CMUX
+AT+CNMA
+AT+CNMI
+AT+CNUM
+AT+COLP
+AT+COPN
+AT+COPS
+AT+CPAS
+AT+CPBF
+AT+CPBR
+AT+CPBS
+AT+CPBW
+AT+CPIN
+AT+CPMS
+AT+CPOL
+AT+CPUC
+AT+CPWD
+AT+CR
+AT+CRC
+AT+CREG
+AT+CRES
+AT+CRLP
+AT+CRSL
+AT+CRSM
+AT+CSAS
+AT+CSCA
+AT+CSCB
+AT+CSCS
+AT+CSDH
+AT+CSIM
+AT+CSMP
+AT+CSMS
+AT+CSNS
+AT+CSQ
+AT%CSQ
+AT+CSSN
+AT+CSTA
+AT+CSVM
+AT+CTFR
+AT+CUSD
+AT+DR
+AT+FAP
+AT+FBO
+AT+FBS
+AT+FBU
+AT+FCC
+AT+FCLASS
+AT+FCQ
+AT+FCR
+AT+FCS
+AT+FCT
+AT+FDR
+AT+FDT
+AT+FEA
+AT+FFC
+AT+FHS
+AT+FIE
+AT+FIP
+AT+FIS
+AT+FIT
+AT+FKS
+AT+FLI
+AT+FLO
+AT+FLP
+AT+FMI
+AT+FMM
+AT+FMR
+AT+FMS
+AT+FND
+AT+FNR
+AT+FNS
+AT+FPA
+AT+FPI
+AT+FPS
+AT+FPW
+AT+FRQ
+AT+FSA
+AT+FSP
+AT+GCAP
+AT+GCI
+AT+GMI
+AT+GMM
+AT+GMR
+AT+GSN
+AT+ICF
+AT+IFC
+AT+ILRR
+AT+IPR
+AT+VTS
+AT+WS46
+AT%ALS
+AT%ATR
+AT%BAND
+AT%CACM
+AT%CAOC
+AT%CCBS
+AT%STDR
+AT%CGAATT
+AT%CGMM
+AT%CGREG
+AT%CNAP
+AT%CPI
+AT%COLR
+AT%CPRIM
+AT%CTV
+AT%CUNS
+AT%NRG
+AT%SATC
+AT%SATE
+AT%SATR
+AT%SATT
+AT%SNCNT
+AT%VER
+AT%CGCLASS
+AT%CGPCO
+AT%CGPPP
+AT%EM
+AT%EMET
+AT%EMETS
+AT%CBHZ
+AT%CPHS
+AT%CPNUMS
+AT%CPALS
+AT%CPVWI
+AT%CPOPN
+AT%CPCFU
+AT%CPINF
+AT%CPMB
+AT%CPRI
+AT%DATA
+AT%DINF
+AT%CLCC
+AT%DBGINFO
+AT%VTS
+AT%CHPL
+AT%CREG
+AT+CTZR
+AT+CTZU
+AT%CTZV
+AT%CNIV
+AT%PVRF
+AT%CWUP
+AT%DAR
+AT+CIND
+AT+CMER
+AT%CSCN
+AT%RDL
+AT%RDLB
+AT%CSTAT
+AT%CPRSM
+AT%CHLD
+AT%SIMIND
+AT%SECP
+AT%SECS
+AT%CSSN
+AT+CCLK
+AT%CSSD
+AT%COPS
+AT%CPMBW
+AT%CUST
+AT%SATCC
+AT%COPN
+AT%CGEREP
+AT%CUSCFG
+AT%CUSDR
+AT%CPBS
+AT%PBCF
+AT%SIMEF
+AT%EFRSLT
+AT%CMGMDU
+AT%CMGL
+AT%CMGR
+AT@ST
+AT@AUL
+AT@POFF
+AT@RST
+AT@SC
+AT@BAND
+ATA
+ATB
+AT&C
+ATD
+AT&D
+ATE
+ATF
+AT&F
+ATH
+ATI
+AT&K
+ATL
+ATM
+ATO
+ATP
+ATQ
+ATS
+ATT
+ATV
+ATW
+AT&W
+ATX
+ATZ
+""".strip()
+completer.commands = commands.split() + commands.lower().split()
+
+class Terminal( object ):
+    def __init__( self, port, baudrate=115200, rtscts=True, xonxoff=False, linemode=True, convert="CRLF" ):
+        self.linemode = linemode
+        self.r = None
+        self.convert = convert
+        self.EXITCHARACTER = '\x04'   #ctrl+D
+        self.fd = None
+        self.serial = serial.Serial( port, baudrate, rtscts=rtscts, xonxoff=xonxoff )
+
+    def run( self ):
+        self.prepare()
+        self.serial.open()
+        assert self.serial.isOpen(), "can't open serial port"
+        self.banner( True )
+        self.r = threading.Thread( target = self.reader )
+        self.r.setDaemon( True )
+        self.r.start()
+        self.writer()
+        self.banner( False )
+
+    def banner( self, startup ):
+        if startup:
+            print "<----------- Mickey's Term V%s @ %s ----------->" % ( __version__, self.serial.port )
+        else:
+            print "Good Bye."
+
+    def prepare( self ):
+        if self.linemode:
+            import readline
+            readline.set_completer( completer )
+            readline.set_completer_delims( " " )
+            readline.parse_and_bind("tab: complete")
+
+        else:
+            import termios
+            self.fd = sys.stdin.fileno()
+            self.old = termios.tcgetattr( self.fd )
+            new = termios.tcgetattr( self.fd )
+            new[3] = new[3] & ~termios.ICANON & ~termios.ECHO
+            new[6][termios.VMIN] = 1
+            new[6][termios.VTIME] = 0
+            termios.tcsetattr( self.fd, termios.TCSANOW, new )
+
+    def restore( self ):
+        if self.linemode:
+            pass
+        else:
+            if self.fd:
+                termios.tcsetattr( self.fd, termios.TCSAFLUSH, self.old )
+
+    def __del__( self ):
+        self.restore()
+
+    def writer( self ):
+        if self.linemode:
+            #
+            # new style
+            #
+            while True:
+                try:
+                    cmdline = raw_input( "" )
+                except KeyboardInterrupt:
+                    print "CTRL-C"
+                    continue
+                except EOFError:
+                    print "CTRL-D"
+                    break
+                else:
+                    if self.convert == "CRLF":
+                        cmdline += "\r\n"
+                    elif self.convert == "CR":
+                        cmdline += "\r"
+                    elif self.convert == "LF":
+                        cmdline += "\n"
+                    self.serial.write( cmdline )
+        else:
+            #
+            # old style
+            #
+            while True:
+                c = os.read( self.fd, 1 )
+                if c == self.EXITCHARACTER:
+                    break
+                elif c == '\n':
+                    if self.convert == "CRLF":
+                        self.serial.write('\r\n')
+                    elif self.convert == "CR":
+                        self.serial.write('\r')
+                    elif self.convert == "LF":
+                        self.serial.write('\n')
+                else:
+                    self.serial.write(c)
+
+    def reader( self ):
+        while True:
+            data = self.serial.read()
+            sys.stdout.write(data)
+            sys.stdout.flush()
+
+if __name__ == "__main__":
+
+    if len( sys.argv ) == 1:
+        # try to get portname from MUXer
+        import dbus
+        bus = dbus.SystemBus()
+        oMuxer = bus.get_object( "org.pyneo.muxer", "/org/pyneo/Muxer" )
+        iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
+        path = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid() )
+        assert path, "could not get path from muxer. need to supply explicit portname"
+    else:
+        path = sys.argv[1]
+
+    t = Terminal( str(path) )
+    t.run()
+
