@@ -2,15 +2,20 @@
 """
 Mickey's own serial terminal. Based on miniterm.py.
 
-(C) 2002-2004 Chris Liechti <cliecht@gmx.net>
+Additional Features:
+    * log input, output, or both to file
+    * org.freesmartphone.GSM.MUX support
+    * readline support with command completion
+
+(C) 2002-2006 Chris Liechti <cliecht@gmx.net>
 (C) 2008 Michael 'Mickey' Lauer <mlauer@vanille-media.de>
 
 GPLv2 or later
 """
 
-__version__ = "1.0.0"
+__version__ = "2.9.0"
 
-import sys, os, serial, threading, getopt
+import sys, os, serial, threading, termios
 
 def completer( text, state ):
     """Return a possible readline completion"""
@@ -289,13 +294,16 @@ ATZ
 completer.commands = commands.split() + commands.lower().split()
 
 class Terminal( object ):
-    def __init__( self, port, baudrate=115200, rtscts=True, xonxoff=False, linemode=True, convert="CRLF" ):
-        self.linemode = linemode
+    def __init__( self, port, baudrate, rtscts, xonxoff, lineending, inputmode=True ):
+        self.inputmode = inputmode
         self.r = None
-        self.convert = convert
-        self.EXITCHARACTER = '\x04'   #ctrl+D
+        self.convert = lineending
+        self.EXITCHARACTER = '\x04' # ctrl+D
         self.fd = None
         self.serial = serial.Serial( port, baudrate, rtscts=rtscts, xonxoff=xonxoff )
+
+    def setQuietMode( self, quiet ):
+        self.quiet = quiet
 
     def run( self ):
         self.prepare()
@@ -307,42 +315,40 @@ class Terminal( object ):
         self.r.start()
         self.writer()
         self.banner( False )
+        self.serial.close()
+        self.restore()
 
     def banner( self, startup ):
+        if self.quiet:
+            return
         if startup:
             print "<----------- Mickey's Term V%s @ %s ----------->" % ( __version__, self.serial.port )
         else:
             print "Good Bye."
 
     def prepare( self ):
-        if self.linemode:
+        if self.inputmode:
             import readline
             readline.set_completer( completer )
             readline.set_completer_delims( " " )
             readline.parse_and_bind("tab: complete")
-
         else:
-            import termios
             self.fd = sys.stdin.fileno()
             self.old = termios.tcgetattr( self.fd )
             new = termios.tcgetattr( self.fd )
-            new[3] = new[3] & ~termios.ICANON & ~termios.ECHO
+            new[3] = new[3] & ~termios.ICANON & ~termios.ECHO & ~termios.ISIG
             new[6][termios.VMIN] = 1
             new[6][termios.VTIME] = 0
             termios.tcsetattr( self.fd, termios.TCSANOW, new )
 
     def restore( self ):
-        if self.linemode:
+        if self.inputmode:
             pass
         else:
-            if self.fd:
-                termios.tcsetattr( self.fd, termios.TCSAFLUSH, self.old )
-
-    def __del__( self ):
-        self.restore()
+            termios.tcsetattr( self.fd, termios.TCSAFLUSH, self.old )
 
     def writer( self ):
-        if self.linemode:
+        if self.inputmode:
             #
             # new style
             #
@@ -388,18 +394,99 @@ class Terminal( object ):
             sys.stdout.flush()
 
 if __name__ == "__main__":
+    import optparse
 
-    if len( sys.argv ) == 1:
-        # try to get portname from MUXer
-        import dbus
-        bus = dbus.SystemBus()
-        oMuxer = bus.get_object( "org.pyneo.muxer", "/org/pyneo/Muxer" )
-        iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
-        path = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid() )
-        assert path, "could not get path from muxer. need to supply explicit portname"
+    parser = optparse.OptionParser(usage="""\
+%prog [options] [port [baudrate]]
+
+Mickey's Terminal Program.""")
+
+    parser.add_option("-p", "--port", dest="port",
+        help="the port, device path, a portnumber, device name (deprecated option), or MUX (default)",
+        default="MUX")
+
+    parser.add_option("-b", "--baud", dest="baudrate", action="store", type='int',
+        help="set baudrate, default 115200", default=115200)
+
+    parser.add_option("-c", "--char-by-char", dest="charbychar", action="store_true",
+        help="use character-by-character (traditional mode) instead of line-by-line (default)",
+        default=False)
+
+    parser.add_option("", "--parity", dest="parity", action="store",
+        help="set parity, one of [N, E, O], default=N", default='N')
+
+    if False:
+        parser.add_option("-e", "--echo", dest="echo", action="store_true",
+            help="enable local echo (default off)", default=False)
+
+    parser.add_option("", "--rtscts", dest="rtscts", action="store_true",
+        help="enable RTS/CTS flow control (default off)", default=False)
+
+    parser.add_option("", "--xonxoff", dest="xonxoff", action="store_true",
+        help="enable software flow control (default off)", default=False)
+
+    parser.add_option("", "--cr", dest="cr", action="store_true",
+        help="do not send CR+LF, send CR only", default=False)
+
+    parser.add_option("", "--lf", dest="lf", action="store_true",
+        help="do not send CR+LF, send LF only", default=False)
+
+    if False:
+        parser.add_option("-D", "--debug", dest="repr_mode", action="count",
+            help="""debug received data (escape non-printable chars)
+    --debug can be given multiple times:
+    0: just print what is received
+    1: escape non-printable characters, do newlines as ususal
+    2: escape non-printable characters, newlines too
+    3: hex dump everything""", default=0)
+
+    parser.add_option("", "--rts", dest="rts_state", action="store", type='int',
+        help="set initial RTS line state (possible values: 0, 1)", default=None)
+
+    parser.add_option("", "--dtr", dest="dtr_state", action="store", type='int',
+        help="set initial DTR line state (possible values: 0, 1)", default=None)
+
+    parser.add_option("-q", "--quiet", dest="quiet", action="store_true",
+        help="suppress non error messages", default=False)
+
+    options, args = parser.parse_args()
+
+    if options.cr and options.lf:
+        parser.error("only one of --cr or --lf can be specified")
     else:
-        path = sys.argv[1]
+        if options.cr:
+            lineending = "CR"
+        elif options.lf:
+            lineending = "LF"
+        else:
+            lineending = "CRLF"
 
-    t = Terminal( str(path) )
+    port = options.port
+    baudrate = options.baudrate
+    if args:
+        if options.port is not None:
+            parser.error("no arguments are allowed, options only when --port is given")
+        port = args.pop(0)
+        if args:
+            try:
+                baudrate = int(args[0])
+            except ValueError:
+                parser.error("baudrate must be a number, not %r" % args[0])
+            args.pop(0)
+        if args:
+            parser.error("too many arguments")
+    else:
+        if port is "MUX":
+            # try to get portname from MUXer
+            import dbus
+            bus = dbus.SystemBus()
+            oMuxer = bus.get_object( "org.pyneo.muxer", "/org/pyneo/Muxer" )
+            iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
+            port = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid() )
+            assert port, "could not get path from muxer. need to supply explicit portname"
+
+    inputmode = not options.charbychar
+
+    t = Terminal( str(port), baudrate, options.rtscts, options.xonxoff, lineending, inputmode )
+    t.setQuietMode( options.quiet )
     t.run()
-
