@@ -1,0 +1,8 @@
+for version 3.0:
+ - get available AT commands on the fly
+ - save/load command history
+
+for version 3.1:
+ - ncurses mode
+ - macro handling
+
