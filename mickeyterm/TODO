@@ -1,13 +1,12 @@
+for version 2.9.7:
+ - get available commands on the fly
+
 for version 2.9.8:
  - gracefully exit
  - if a port disappears, try to reopen it
 
 for version 2.9.9:
  - remove threads in favour of G mainloop?
-
-for version 3.0:
- - get available AT commands on the fly
- - save/load command history
 
 for version 3.1:
  - ncurses mode

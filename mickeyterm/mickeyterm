@@ -3,7 +3,7 @@
 Mickey's own serial terminal. Based on miniterm.py.
 
 Additional Features:
-    * readline support with command completion
+    * readline support with command completion and history
     * org.freesmartphone.GSM.MUX support
     * log to file
 
@@ -13,7 +13,7 @@ Additional Features:
 GPLv2 or later
 """
 
-__version__ = "2.9.0"
+__version__ = "2.9.1"
 
 import sys, os, serial, threading, termios
 
@@ -339,6 +339,13 @@ class Terminal( object ):
             readline.set_completer( completer )
             readline.set_completer_delims( " " )
             readline.parse_and_bind("tab: complete")
+            self.historyfilename = os.path.expanduser( "~/.mickeyterm_history" )
+            try:
+                readline.read_history_file( self.historyfilename )
+                print "read history from", self.historyfilename
+            except IOError:
+                readline.clear_history()
+
         else:
             self.fd = sys.stdin.fileno()
             self.old = termios.tcgetattr( self.fd )
@@ -350,7 +357,11 @@ class Terminal( object ):
 
     def restore( self ):
         if self.inputmode:
-            pass
+            import readline
+            try:
+                readline.write_history_file( self.historyfilename )
+            except IOError, e:
+                print "Could not save history.", repr(e)
         else:
             termios.tcsetattr( self.fd, termios.TCSAFLUSH, self.old )
 
