@@ -320,6 +320,8 @@ class Terminal( object ):
         self.r = threading.Thread( target = self.reader )
         self.r.setDaemon( True )
         self.r.start()
+        # optional
+        self.serial.write( "AT+CMEE=2;+CRC=1\r\n" )
         self.writer()
         self.banner( False )
         self.serial.close()
@@ -408,8 +410,8 @@ class Terminal( object ):
                 else:
                     self.serial.write(c)
                     if self.logging:
-                        self.ilog.write( cmdline )
-                        self.alog.write( cmdline )
+                        self.ilog.write( c )
+                        self.alog.write( c )
 
     def reader( self ):
         while True:
