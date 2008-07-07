@@ -245,6 +245,16 @@ class Commands( object ):
             for name, interface in data["interfaces"].iteritems():
                 self._listInterface( name, interface["signals"], interface["methods"], interface["properties"] )
 
+    def callMethod( self, busname, objname, methodname, parameters=[] ):
+        obj = self._tryObject( busname, objname )
+        if obj is not None:
+            method = getattr( obj, methodname.split( '.' )[-1] )
+            result = method( *parameters )
+        print "[METHOD] returned "%
+
+    def callMethodWithParameters( self, busname, objname, methodname, parameters ):
+        pass
+
 #----------------------------------------------------------------------------#
 if __name__ == "__main__":
 #----------------------------------------------------------------------------#
@@ -273,6 +283,19 @@ if __name__ == "__main__":
         busname = argv.pop()
         objname = argv.pop()
         c.listMethods( busname, objname )
+
+    elif len( argv ) == 3:
+        busname = argv.pop()
+        objname = argv.pop()
+        methodname = argv.pop()
+        c.callMethod( busname, objname, methodname )
+
+    elif len( argv ) == 4:
+        busname = argv.pop()
+        objname = argv.pop()
+        methodname = argv.pop()
+        parameters = argv.pop()
+        c.callMethodWithParameters( busname, objname, methodname, parameters )
 
     else:
         print "Usage: %s [-s] [ busname [ objectpath [ methodname [ parameters ] ] ] ]" % ( sys.argv[0] )
