@@ -249,8 +249,16 @@ class Commands( object ):
         obj = self._tryObject( busname, objname )
         if obj is not None:
             method = getattr( obj, methodname.split( '.' )[-1] )
-            result = method( *parameters )
-        print "[METHOD] returned "%
+            try:
+                result = method( *parameters )
+            except dbus.DBusException, e:
+                print "%s: %s failed: %s" % ( objname, methodname, e.get_dbus_name() )
+            else:
+                print "%s: %s returned." % ( objname, methodname ),
+                if result is not None:
+                    print result
+                else:
+                    print
 
     def callMethodWithParameters( self, busname, objname, methodname, parameters ):
         pass
