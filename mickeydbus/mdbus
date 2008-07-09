@@ -7,7 +7,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9"
+__version__ = "0.9.9"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -162,18 +162,65 @@ def process_introspection_data(data):
     except Exception, e:
         raise IntrospectionParserException('%s: %s' % (e.__class__, e))
 
-
-import dbus
-import sys
-
 #----------------------------------------------------------------------------#
 class Commands( object ):
 #----------------------------------------------------------------------------#
+    """
+    Implementing the dbus introspection / interaction.
+    """
     def __init__( self, bus ):
+        if mode == "listen":
+            self._setupMainloop()
         self.bus = bus()
 
+    def listBusNames( self ):
+        names = self.bus.list_names()[:]
+        names.sort()
+        for n in names:
+            print n
+
+    def listObjects( self, busname ):
+        self._listChildren( busname, '/' )
+
+    def listMethods( self, busname, objname ):
+        obj = self._tryObject( busname, objname )
+        if obj is not None:
+            data = process_introspection_data( obj.Introspect() )
+            for name, interface in data["interfaces"].iteritems():
+                self._listInterface( name, interface["signals"], interface["methods"], interface["properties"] )
+
+    def callMethod( self, busname, objname, methodname, parameters=[] ):
+        obj = self._tryObject( busname, objname )
+        if obj is not None:
+
+            if '.' in methodname:
+                # if we have a fully qualified methodname, use an Interface
+                ifacename = '.'.join( methodname.split( '.' )[:-1] )
+                methodname = methodname.split( '.' )[-1]
+                iface = dbus.Interface( obj, ifacename )
+                method = getattr( iface, methodname )
+            else:
+                method = getattr( obj, methodname.split( '.' )[-1] )
+
+            try:
+                result = method( *parameters )
+            except dbus.DBusException, e:
+                print "%s: %s failed: %s" % ( objname, methodname, e.get_dbus_name() )
+            except TypeError, e:
+                pass # python will emit its own error here
+            else:
+                print "%s: %s -> " % ( objname, methodname ),
+                if result is not None:
+                    self._prettyPrint( result )
+                else:
+                    print
+
+    def monitorBus( self ):
+        self.monitoring = "bus"
+        self._runMainloop()
+
     #
-    # private API
+    # command mode
     #
 
     def _listChildren( self, busname, objname ):
@@ -233,84 +280,97 @@ class Commands( object ):
         for mname in propertynames:
             signature = self._signature( properties[mname] )
             print "[PROPERTY]  %s.%s%s" % ( name, mname, signature )
+
+    def _prettyPrint( self, result ):
+        # FIXME pretty printing...
+        print result
+
     #
-    # public API
+    # listening mode
     #
 
-    def listBusNames( self ):
-        names = self.bus.list_names()[:]
-        names.sort()
-        for n in names:
-            print n
+    def _setupMainloop( self ):
+        import gobject
+        import dbus.mainloop.glib
+        dbus.mainloop.glib.DBusGMainLoop( set_as_default=True )
+        self.mainloop = gobject.MainLoop()
+        gobject.idle_add( self._setupListener )
 
-    def listObjects( self, busname ):
-        self._listChildren( busname, '/' )
+    def _runMainloop( self ):
+        try:
+            print "> mainloop"
+            self.mainloop.run()
+        except KeyboardInterrupt:
+            self.mainloop.quit()
+            sys.exit( 0 )
 
-    def listMethods( self, busname, objname ):
-        obj = self._tryObject( busname, objname )
-        if obj is not None:
-            data = process_introspection_data( obj.Introspect() )
-            for name, interface in data["interfaces"].iteritems():
-                self._listInterface( name, interface["signals"], interface["methods"], interface["properties"] )
+    def _setupListener( self ):
+        self.bus.add_signal_receiver(
+            self._signalHandler,
+            None,
+            None,
+            "org.freesmartphone.ogsmd",
+            None,
+            sender_keyword = "sender",
+            destination_keyword = "destination",
+            interface_keyword = "interface",
+            member_keyword = "member",
+            path_keyword = "path" )
+        return False # don't call me again
 
-    def callMethod( self, busname, objname, methodname, parameters=[] ):
-        obj = self._tryObject( busname, objname )
-        if obj is not None:
-
-            if '.' in methodname:
-                # if we have a fully qualified methodname, use an Interface
-                ifacename = '.'.join( methodname.split( '.' )[:-1] )
-                methodname = methodname.split( '.' )[-1]
-                iface = dbus.Interface( obj, ifacename )
-                method = getattr( iface, methodname )
-            else:
-                method = getattr( obj, methodname.split( '.' )[-1] )
-
-            try:
-                result = method( *parameters )
-            except dbus.DBusException, e:
-                print "%s: %s failed: %s" % ( objname, methodname, e.get_dbus_name() )
-            except TypeError, e:
-                pass # python will emit its own error here
-            else:
-                print "%s: %s -> " % ( objname, methodname ),
-                if result is not None:
-                    print result
-                else:
-                    print
+    def _signalHandler( self, *args, **kwargs ):
+        print "[SIGNAL]    %s.%s    from %s %s" % ( kwargs["interface"], kwargs["member"], kwargs["sender"], kwargs["path"] )
+        self._prettyPrint( args )
 
 #----------------------------------------------------------------------------#
 if __name__ == "__main__":
 #----------------------------------------------------------------------------#
+    import gobject
+    import dbus
+    import sys
+
     argv = sys.argv[::-1]
     execname = argv.pop()
 
     if ( "-h" in argv ) or ( "--help" in argv ):
-        print "Usage: %s [-s] [ busname [ objectpath [ methodname [ parameters... ] ] ] ]" % ( sys.argv[0] )
+        print "Usage: %s [-s] [-l] [ busname [ objectpath [ methodname [ parameters... ] ] ] ]" % ( sys.argv[0] )
         sys.exit( 0 )
 
     bus = dbus.SessionBus
+    mode = "command"
 
     # run through all arguments and check whether we got '-s' somewhere
     if "-s" in argv:
         bus = dbus.SystemBus
         argv.remove( "-s" )
 
+    # run through all arguments and check whether we got '-l' somewhere
+    if "-l" in argv:
+        mode = "listen"
+        argv.remove( "-l" )
+
     c = Commands( bus )
 
     if len( argv ) == 0:
-        c.listBusNames()
-        sys.exit( 0 )
+        if mode == "command":
+            c.listBusNames()
+        else:
+            c.monitorBus()
 
     elif len( argv ) == 1:
         busname = argv.pop()
-        c.listObjects( busname )
-        sys.exit( 0 )
+        if mode == "command":
+            c.listObjects( busname )
+        else:
+            c.monitorObjects( busname )
 
     elif len( argv ) == 2:
         busname = argv.pop()
         objname = argv.pop()
-        c.listMethods( busname, objname )
+        if mode == "command":
+            c.listMethods( busname, objname )
+        else:
+            c.monitorObject( busname, objname )
 
     elif len( argv ) == 3:
         busname = argv.pop()
