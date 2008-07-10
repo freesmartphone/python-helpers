@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+"""
+Open a bunch of serial terminals and dump their output.
+
+(C) 2008 Michael 'Mickey' Lauer <mlauer@vanille-media.de>
+
+GPLv2 or later
+"""
+
+__version__ = "0.1"
+
+import serial, gobject, glob, time, sys, os
+
+#=========================================================================#
+def log( msg ):
+#=========================================================================#
+    sys.stderr.write( "%s\n" % msg )
+
+#=========================================================================#
+class FileWatcher( object ):
+#=========================================================================#
+
+    def __init__( self, filename ):
+        self.serial = serial.Serial()
+        self.serial.port = str( filename )
+        self.serial.baudrate = 115200
+        self.serial.rtscts = True
+        self.serial.xonxoff = False
+        self.serial.bytesize = serial.EIGHTBITS
+        self.serial.parity = serial.PARITY_NONE
+        self.serial.stopbits = serial.STOPBITS_ONE
+        self.serial.timeout = None
+        try:
+            self.serial.open()
+        except serial.serialutil.SerialException, e:
+            log( "can't open %s: %s (ignored)" % ( filename, e ) )
+        else:
+            if self.serial.isOpen():
+                log( "watching %s..." % filename )
+                self.watchReadyToRead = gobject.io_add_watch( self.serial.fd, gobject.IO_IN, self.readyToRead )
+
+    def readyToRead( self, source, condition ):
+        try:
+            inWaiting = self.serial.inWaiting()
+        except IOError:
+            inWaiting = 0
+        data = self.serial.read( inWaiting )
+        timestamp = time.strftime("%Y%m%d.%H%M.%S")
+        print "(%s: got %d bytes from %s: %s)" % ( timestamp, len(data), self.serial.port, repr(data) )
+        return True
+
+#=========================================================================#
+if __name__ == "__main__":
+#=========================================================================#
+    args = sys.argv[1:]
+    if not len( args ):
+        print "Usage: %s path1 path2 ..." % sys.argv[0]
+        sys.exit( -1 )
+    devices = []
+    watchers = []
+    for path in args:
+        devices += glob.glob( path )
+    for device in devices:
+        watchers.append( FileWatcher( device ) )
+    mainloop = gobject.MainLoop()
+    try:
+        log( "-> mainloop" )
+        mainloop.run()
+        log( "<- mainloop" )
+    except KeyboardInterrupt:
+        pass
+
