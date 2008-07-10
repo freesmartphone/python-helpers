@@ -1,2 +1,4 @@
-listening mode for signals
+for 1.0:
+ * pretty printing results
+ * before starting to listen, check out whether the requested busname/objname actually exists
 

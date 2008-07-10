@@ -172,6 +172,9 @@ class Commands( object ):
         if mode == "listen":
             self._setupMainloop()
         self.bus = bus()
+        self.busname = None
+        self.objpath = None
+        self.rinterface = None
 
     def listBusNames( self ):
         names = self.bus.list_names()[:]
@@ -216,7 +219,15 @@ class Commands( object ):
                     print
 
     def monitorBus( self ):
-        self.monitoring = "bus"
+        self._runMainloop()
+
+    def monitorService( self, busname ):
+        self.busname = busname
+        self._runMainloop()
+
+    def monitorObject( self, busname, objname ):
+        self.busname = busname
+        self.objpath = objname
         self._runMainloop()
 
     #
@@ -298,7 +309,10 @@ class Commands( object ):
 
     def _runMainloop( self ):
         try:
-            print "> mainloop"
+            b = self.bus.__class__.__name__
+            bname = self.busname or "all"
+            oname = self.objpath or "all"
+            print "listening for signals on %s from service '%s', object '%s'..." % ( b, bname, oname )
             self.mainloop.run()
         except KeyboardInterrupt:
             self.mainloop.quit()
@@ -309,8 +323,8 @@ class Commands( object ):
             self._signalHandler,
             None,
             None,
-            "org.freesmartphone.ogsmd",
-            None,
+            self.busname,
+            self.objpath,
             sender_keyword = "sender",
             destination_keyword = "destination",
             interface_keyword = "interface",
@@ -362,7 +376,7 @@ if __name__ == "__main__":
         if mode == "command":
             c.listObjects( busname )
         else:
-            c.monitorObjects( busname )
+            c.monitorService( busname )
 
     elif len( argv ) == 2:
         busname = argv.pop()
