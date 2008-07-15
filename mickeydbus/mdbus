@@ -333,7 +333,8 @@ class Commands( object ):
         return False # don't call me again
 
     def _signalHandler( self, *args, **kwargs ):
-        print "[SIGNAL]    %s.%s    from %s %s" % ( kwargs["interface"], kwargs["member"], kwargs["sender"], kwargs["path"] )
+        timestamp = time.strftime("%Y%m%d.%H%M.%S") if timestamps else ""
+        print "%s [SIGNAL]    %s.%s    from %s %s" % ( timestamp, kwargs["interface"], kwargs["member"], kwargs["sender"], kwargs["path"] )
         self._prettyPrint( args )
 
 #----------------------------------------------------------------------------#
@@ -342,6 +343,7 @@ if __name__ == "__main__":
     import gobject
     import dbus
     import sys
+    import time
 
     argv = sys.argv[::-1]
     execname = argv.pop()
@@ -352,6 +354,7 @@ if __name__ == "__main__":
 
     bus = dbus.SessionBus
     mode = "command"
+    timestamps = False
 
     # run through all arguments and check whether we got '-s' somewhere
     if "-s" in argv:
@@ -362,6 +365,11 @@ if __name__ == "__main__":
     if "-l" in argv:
         mode = "listen"
         argv.remove( "-l" )
+
+    # run through all arguments and check whether we got '-t' somewhere
+    if "-t" in argv:
+        timestamps = True
+        argv.remove( "-t" )
 
     c = Commands( bus )
 
