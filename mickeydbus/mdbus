@@ -355,6 +355,7 @@ if __name__ == "__main__":
     bus = dbus.SessionBus
     mode = "command"
     timestamps = False
+    escape = False
 
     # run through all arguments and check whether we got '-s' somewhere
     if "-s" in argv:
@@ -370,6 +371,11 @@ if __name__ == "__main__":
     if "-t" in argv:
         timestamps = True
         argv.remove( "-t" )
+
+    # run through all arguments and check whether we got '-e' somewhere
+    if "-e" in argv:
+        escape = True
+        argv.remove( "-e" )
 
     c = Commands( bus )
 
@@ -411,7 +417,10 @@ if __name__ == "__main__":
                 string = argv.pop()
                 parameter = eval( string )
             except NameError: # treat as string
-                parameter = eval( '"%s"' % string )
+                parameter = eval( '"""%s"""' % string )
+                if escape:
+                    parameter = parameter.replace( '.r', '\r' )
+                    parameter = parameter.replace( '.n', '\n' )
                 parameters.append( parameter )
             except ( SyntaxError, ValueError, AttributeError ):
                 print "Error while evaluating '%s'" % string
