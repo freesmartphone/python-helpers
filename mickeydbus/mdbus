@@ -413,20 +413,20 @@ if __name__ == "__main__":
         parameters = []
 
         while argv:
+            string = argv.pop()
+            if string.strip() == "":
+                parameters.append( "" )
+                continue
             try:
-                string = argv.pop()
-                if string.strip() == "":
-                    parameters.append( "" )
-                    continue
                 parameter = eval( string )
-            except NameError: # treat as string
+            except ( NameError, SyntaxError ): # treat as string
                 parameter = eval( '"""%s"""' % string )
                 if escape:
                     parameter = parameter.replace( '.r', '\r' )
                     parameter = parameter.replace( '.n', '\n' )
                 parameters.append( parameter )
-            except ( SyntaxError, ValueError, AttributeError ):
-                print "Error while evaluating '%s'" % string
+            except ( ValueError, AttributeError ), e:
+                print "Error while evaluating '%s': %s" % ( string, e )
                 sys.exit( -1 )
             else:
                 parameters.append( parameter )
