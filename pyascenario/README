@@ -1,0 +1,3 @@
+PyAscenario -- an interface to the alsa scenario library.
+
+Needs Cython >= 0.9
