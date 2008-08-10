@@ -7,7 +7,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9.9"
+__version__ = "0.9.9.1"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -415,6 +415,9 @@ if __name__ == "__main__":
         while argv:
             try:
                 string = argv.pop()
+                if string.strip() == "":
+                    parameters.append( "" )
+                    continue
                 parameter = eval( string )
             except NameError: # treat as string
                 parameter = eval( '"""%s"""' % string )
