@@ -2,7 +2,7 @@
     pyrtc high level functions
     Authored by Michael 'Mickey' Lauer <mlauer@vanille-media.de>
     (C) 2008 OpenMoko, Inc.
-    GPLv2 or later
+    LGPLv3
 """
 
 __version__ = "1.0.0"
