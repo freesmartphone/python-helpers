@@ -7,7 +7,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9.9.1"
+__version__ = "0.9.9.2"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -188,7 +188,8 @@ class Commands( object ):
     def listMethods( self, busname, objname ):
         obj = self._tryObject( busname, objname )
         if obj is not None:
-            data = process_introspection_data( obj.Introspect() )
+            iface = dbus.Interface( obj, "org.freedesktop.DBus.Introspectable" )
+            data = process_introspection_data( iface.Introspect() )
             for name, interface in data["interfaces"].iteritems():
                 self._listInterface( name, interface["signals"], interface["methods"], interface["properties"] )
 
@@ -237,9 +238,10 @@ class Commands( object ):
     def _listChildren( self, busname, objname ):
         fail = objname is '/'
         obj = self._tryObject( busname, objname, fail )
+        iface = dbus.Interface( obj, "org.freedesktop.DBus.Introspectable" )
         print objname
         if obj is not None:
-            data = process_introspection_data( obj.Introspect() )
+            data = process_introspection_data( iface.Introspect() )
             for o in data["child_nodes"]:
                 newname = "%s/%s" % ( objname, o )
                 newname = newname.replace( "//", "/" )
@@ -247,7 +249,7 @@ class Commands( object ):
 
     def _tryObject( self, busname, objname, fail=True ):
         try:
-            obj = self.bus.get_object( busname, objname )
+            obj = self.bus.get_object( busname, objname, introspect=True )
         except ( dbus.DBusException, ValueError ):
             if fail:
                 if busname in self.bus.list_names():
