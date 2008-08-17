@@ -1,5 +1,5 @@
 for 1.0:
- * pretty printing results
+ * fix bugs
  * before starting to listen, check out whether the requested busname/objname actually exists
 
 for 1.1:
