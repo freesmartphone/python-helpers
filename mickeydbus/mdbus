@@ -7,7 +7,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9.9.3"
+__version__ = "0.9.9.4"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -254,7 +254,7 @@ class Commands( object ):
                 method = getattr( obj, methodname.split( '.' )[-1] )
 
             try:
-                result = method( *parameters )
+                result = method( timeout=100000, *parameters )
             except dbus.DBusException, e:
                 print "%s: %s failed: %s" % ( objname, methodname, e.get_dbus_name() )
             except TypeError, e:
