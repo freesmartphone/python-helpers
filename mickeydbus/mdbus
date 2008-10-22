@@ -7,7 +7,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9.9.6"
+__version__ = "0.9.9.7"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -176,6 +176,8 @@ def dbus_to_python(v):
         return [dbus_to_python(x) for x in v]
     elif isinstance(v, dbus.Struct) or type(v) == types.TupleType:
         return tuple(dbus_to_python(x) for x in v)
+    elif isinstance(v, dbus.Boolean) or type(v) == types.BooleanType:
+        return bool(v)
     else:
         raise TypeError("Can't convert type %s to python object" % type(v))
 
