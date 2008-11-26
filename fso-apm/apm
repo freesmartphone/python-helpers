@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+"""
+apm compatibility command
+
+(C) 2008 Michael 'Mickey' Lauer <mlauer@vanille-media.de>
+(C) 2008 Openmoko, Inc.
+GPLv2 or later
+"""
+
+import sys, dbus
+
+#=========================================================================#
+def showCapacity():
+#=========================================================================#
+    bus = dbus.SystemBus()
+    obj = bus.get_object( "org.freesmartphone.frameworkd", "/org/freesmartphone/Framework" )
+    framework = dbus.Interface( obj, "org.freesmartphone.Framework" )
+
+    batteries = framework.ListObjectsByInterface( "org.freesmartphone.Device.PowerSupply" )
+    if len( batteries ):
+        obj = bus.get_object( "org.freesmartphone.odeviced", batteries[0] )
+        battery = dbus.Interface( obj, "org.freesmartphone.Device.PowerSupply" )
+        capacity = battery.GetCapacity()
+        print "%d%%" % capacity
+
+#=========================================================================#
+def callSuspend():
+#=========================================================================#
+    bus = dbus.SystemBus()
+    obj = bus.get_object( "org.freesmartphone.ousaged", "/org/freesmartphone/Usage" )
+    usage = dbus.Interface( obj, "org.freesmartphone.Usage" )
+
+    try:
+        usage.Suspend()
+    except dbus.DBusException:
+        pass
+
+#=========================================================================#
+if __name__ == "__main__":
+#=========================================================================#
+    if len( sys.argv ) == 1:
+        showCapacity()
+        sys.exit( 0 )
+    elif len( sys.argv ) == 2 and sys.argv[1] == '-s':
+        callSuspend()
+        sys.exit( 0 )
+    else:
+        print "Usage: apm [-s]"
+        sys.exit( -1 )
