@@ -7,6 +7,8 @@ apm compatibility command
 GPLv2 or later
 """
 
+__version__ = "1.0.0"
+
 import sys, dbus
 
 #=========================================================================#
@@ -21,7 +23,8 @@ def showCapacity():
         obj = bus.get_object( "org.freesmartphone.odeviced", batteries[0] )
         battery = dbus.Interface( obj, "org.freesmartphone.Device.PowerSupply" )
         capacity = battery.GetCapacity()
-        print "%d%%" % capacity
+        status = battery.GetPowerStatus()
+        print "%d%% - %s" % ( capacity, status )
 
 #=========================================================================#
 def callSuspend():
