@@ -7,7 +7,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9.9.8"
+__version__ = "0.9.9.9"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -215,7 +215,7 @@ class Commands( object ):
         obj = self._tryObject( busname, objname )
         if obj is not None:
             iface = dbus.Interface( obj, "org.freedesktop.DBus.Introspectable" )
-            data = process_introspection_data( iface.Introspect() )
+            self.data = data = process_introspection_data( iface.Introspect() )
             for name, interface in data["interfaces"].iteritems():
                 self._listInterface( name, interface["signals"], interface["methods"], interface["properties"] )
 
@@ -290,7 +290,7 @@ class Commands( object ):
 
     def _signature( self, parameters ):
         string = "( "
-        for p in parameters[0]:
+        for p in parameters:
             string += self._parameter( p["type"], p["name"] )
             string += ", "
         if len( string ) == 2:
@@ -302,19 +302,23 @@ class Commands( object ):
         methodnames = methods.keys()
         methodnames.sort()
         for mname in methodnames:
-            signature = self._signature( methods[mname] )
-            print "[METHOD]    %s.%s%s" % ( name, mname, signature )
+            inSignature = self._signature( methods[mname][0] )
+            if returns:
+                outSignature = self._signature( methods[mname][1] )
+                print "[METHOD]    %s.%s%s -> %s" % ( name, mname, inSignature, outSignature )
+            else:
+                print "[METHOD]    %s.%s%s" % ( name, mname, inSignature )
 
         signalnames = signals.keys()
         signalnames.sort()
         for mname in signalnames:
-            signature = self._signature( signals[mname] )
+            signature = self._signature( signals[mname][0] )
             print "[SIGNAL]    %s.%s%s" % ( name, mname, signature )
 
         propertynames = properties.keys()
         propertynames.sort()
         for mname in propertynames:
-            signature = self._signature( properties[mname] )
+            signature = self._signature( properties[mname][0] )
             print "[PROPERTY]  %s.%s%s" % ( name, mname, signature )
 
     def _prettyPrint( self, result ):
@@ -382,6 +386,7 @@ if __name__ == "__main__":
     mode = "command"
     timestamps = False
     escape = False
+    returns = False
 
     # run through all arguments and check whether we got '-s' somewhere
     if "-s" in argv:
@@ -402,6 +407,11 @@ if __name__ == "__main__":
     if "-e" in argv:
         escape = True
         argv.remove( "-e" )
+
+    # run through all arguments and check whether we got '-s' somewhere
+    if "-r" in argv:
+        returns = True
+        argv.remove( "-r" )
 
     c = Commands( bus )
 
