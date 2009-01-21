@@ -7,7 +7,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9.9.9"
+__version__ = "0.9.9.10"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -168,6 +168,8 @@ def dbus_to_python(v):
 #----------------------------------------------------------------------------#
     if isinstance(v, dbus.Int64) or isinstance(v, dbus.Int32) or type(v) == types.IntType:
         return int(v)
+    elif isinstance(v, dbus.Double) or type(v) == types.FloatType:
+        return float(v)
     elif isinstance(v, dbus.String) or type(v) == types.StringType:
         return str(v)
     elif isinstance(v, dbus.Dictionary) or type(v) == types.DictType:
