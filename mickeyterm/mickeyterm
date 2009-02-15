@@ -4,11 +4,11 @@ Mickey's own serial terminal. Based on miniterm.py.
 
 Additional Features:
     * readline support with command completion and history
-    * org.freesmartphone.GSM.MUX support
+    * support for gsm0710muxd and fso-abyss
     * log to file
 
 (C) 2002-2006 Chris Liechti <cliecht@gmx.net>
-(C) 2008 Michael 'Mickey' Lauer <mlauer@vanille-media.de>
+(C) 2008-2009 Michael 'Mickey' Lauer <mlauer@vanille-media.de>
 
 GPLv2 or later
 """
@@ -512,13 +512,23 @@ Mickey's Terminal Program.""")
             parser.error("too many arguments")
     else:
         if port is "MUX":
-            # try to get portname from MUXer
+            # try to get portname from old-style MUXer
             import dbus
             bus = dbus.SystemBus()
             oMuxer = bus.get_object( "org.pyneo.muxer", "/org/pyneo/Muxer" )
             iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
             port = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid() )
-            assert port, "could not get path from muxer. need to supply explicit portname"
+            assert port, "could not get path from gsm0710muxd. need to supply explicit portname"
+
+        elif port.startswith( "fso" ):
+            fso, channel = port.split( ':', 1 )
+            number = int( channel )
+            import dbus
+            bus = dbus.SystemBus()
+            oMuxer = bus.get_object( "org.freesmartphone.omuxerd", "/org/freesmartphone/GSM/Muxer" )
+            iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
+            port, channel = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid(), number )
+            assert port, "could not get path from fso-abyss. need to supply explicit portname"
 
     if options.log is not None:
         if not os.path.isdir( options.log ):
