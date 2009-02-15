@@ -7,6 +7,7 @@ for version 2.9.8:
 
 for version 2.9.9:
  - remove threads in favour of G mainloop?
+ - rewrite in Vala?
 
 for version 3.1:
  - ncurses mode
