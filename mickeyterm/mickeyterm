@@ -13,7 +13,7 @@ Additional Features:
 GPLv2 or later
 """
 
-__version__ = "2.9.1"
+__version__ = "2.9.2"
 
 import sys, os, serial, threading, termios
 
@@ -37,6 +37,134 @@ def completer( text, state ):
         return None
 
 commands = """
+AT&F
+AT&V
+AT&W
+AT+CACM
+AT+CALA
+AT+CAMM
+AT+CCFC
+AT+CEER
+AT+CFUN
+AT+CGMM
+AT+CGREG
+AT+CGSN
+AT+CIMI
+AT+CIND
+AT+CLCC
+AT+CLCK_FD
+AT+CLVL
+AT+CMEE
+AT+CMER
+AT+CMGL
+AT+CMUT
+AT+CMUX
+AT+CNMI
+AT+CNUM
+AT+COPN
+AT+COPS
+AT+CPBR
+AT+CPBS
+AT+CPBW
+AT+CREG
+AT+CRSM
+AT+CSCB
+AT+CSCS
+AT+CSIM
+AT+CTZR
+AT+CTZU
+AT+GMM
+AT+GSN
+AT+VTD
+AT+VTS
+AT+WS46
+AT^MONI
+AT^MONP
+AT^SACM
+AT^SAIC
+AT^SALS
+AT^SATR
+AT^SBC
+AT^SBLK
+AT^SBNR
+AT^SBNW
+AT^SCCFC
+AT^SCFG
+AT^SCKS
+AT^SCML
+AT^SCTM
+AT^SDLD
+AT^SFDL
+AT^SGAUTH
+AT^SGSN
+AT^SHOM
+AT^SICC
+AT^SICI
+AT^SICO
+AT^SICS
+AT^SIND
+AT^SISC
+AT^SISE
+AT^SISI
+AT^SISO
+AT^SISR
+AT^SISS
+AT^SISW
+AT^SISX
+AT^SLCC
+AT^SLCD
+AT^SM20
+AT^SMGL
+AT^SMGO
+AT^SMONC
+AT^SMOND
+AT^SMONG
+AT^SMSO
+AT^SNBTA
+AT^SNFA
+AT^SNFD
+AT^SNFG
+AT^SNFI
+AT^SNFM
+AT^SNFO
+AT^SNFPT
+AT^SNFS
+AT^SNFTTY
+AT^SNFV
+AT^SNFW
+AT^SNWS
+AT^SOPS
+AT^SPBC
+AT^SPBD
+AT^SPBG
+AT^SPBS
+AT^SPBW
+AT^SPLM
+AT^SPLR
+AT^SPLW
+AT^SQWE
+AT^SRPN
+AT^SRSA
+AT^SRSM
+AT^SRTC
+AT^SRTEH
+AT^SRUN
+AT^SSET
+AT^SSPI
+AT^SSTA
+AT^SSTGI
+AT^SSTK
+AT^SSTR
+AT^SSUH
+AT^STBD
+AT^STCD
+AT^SXSM
+AT_AND_F_DUMMY
+AT_AND_F_DUMMY
+AT_AND_F_DUMMY
+AT_CGATT_DUMMY
+ATI
+ATZ
 AT+CACM
 AT+CAMM
 AT+CAOC
@@ -291,7 +419,7 @@ AT&W
 ATX
 ATZ
 """.strip()
-completer.commands = commands.split() + commands.lower().split()
+completer.commands = set(commands.split() + commands.lower().split())
 
 class Terminal( object ):
     def __init__( self, port, baudrate, rtscts, xonxoff, lineending, inputmode=True ):
