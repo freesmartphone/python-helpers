@@ -1,0 +1,8 @@
+- choose a better name/dbus-api
+  * allow to preload generic modules
+- be able to start:
+  * module with function
+  * script
+- add a unix socket
+- add simple C launcher/wrapper
+
