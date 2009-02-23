@@ -7,7 +7,15 @@ The Open Device Daemon - Python Implementation
 GPLv2 or later
 """
 
-import os, sys
+DBUS_PATH = "/"
+DBUS_INTERFACE = "org.freesmartphone.CloneFactory"
+SOCKET_PATH = '/var/run/pyc_socket'
+
+import os, socket, sys
+
+import struct
+
+import atexit
 
 import dbus
 import dbus.service
@@ -47,12 +55,14 @@ class Prototype( object ):
         os.close( self.up[0] )
         self.down = os.fdopen( self.down[0], 'r', 0 ) # read side
         self.up = os.fdopen( self.up[1], 'w', 0 ) # write side
-        while True:
-            sender, argv = self.down.readline().strip().split(' ', 1)
+        line = self.down.readline().strip()
+        while line:
+            sender, argv = line.split(' ', 1)
             sender = int( sender )
             argv = eval( argv )
             logger.info( "got command: %s", repr(( sender, argv )) )
             self.doClone( sender, argv )
+            line = self.down.readline().strip()
 
     def inParent( self, child_pid ):
         logger.info( "started prototype (child PID %s)", child_pid )
@@ -132,12 +142,10 @@ class Prototype( object ):
         runpy.run_module(sys.argv[0], run_name="__main__", alter_sys=True)
 
 #============================================================================#
-class CloneFactory( dbus.service.Object ):
+class DBusAPI( dbus.service.Object ):
 #============================================================================#
-    DBUS_PATH = "/"
-    DBUS_INTERFACE = "org.freesmartphone.CloneFactory"
     def __init__( self, bus ):
-        dbus.service.Object.__init__( self, bus, self.DBUS_PATH )
+        dbus.service.Object.__init__( self, bus, DBUS_PATH )
         self.bus = bus
         self.dbus_proxy = self.bus.get_object( "org.freedesktop.DBus", "/" )
         self.dbus_iface = dbus.Interface( self.dbus_proxy, "org.freedesktop.DBus" )
@@ -151,6 +159,69 @@ class CloneFactory( dbus.service.Object ):
         argv = map( str, argv )
         return prototype.requestClone( sender_pid, argv )
 
+#============================================================================#
+class SocketAPI( object ):
+#============================================================================#
+    def __init__( self ):
+        self.socket = socket.socket( socket.AF_UNIX, socket.SOCK_SEQPACKET )
+        self.socket.bind( SOCKET_PATH )
+        self.socket.listen( 50 )
+        self.clients = {}
+        gobject.io_add_watch( self.socket, gobject.IO_IN, self.handleServer )
+        atexit.register( self.atexit )
+
+    def getPeerCred( self, peer ):
+        SO_PEERCRED = 17
+        format = "III"
+        size = struct.calcsize( format )
+        cred = peer.getsockopt( socket.SOL_SOCKET, SO_PEERCRED, size )
+        return struct.unpack(format, cred) # pid, uid, gid
+
+    def handleServer( self, source, condition ):
+        logger.info( "new socket connection" )
+        client, address = self.socket.accept()
+        cred = self.getPeerCred( client )
+        self.clients[client] = { 'address': address, 'cred': cred, 'data': "" }
+        logger.info( "accepted connection from %i (uid %i, gid %i)" % cred )
+        gobject.io_add_watch( client, gobject.IO_IN, self.handleClient )
+        return True
+
+    def handleClient( self, source, condition ):
+        data = source.recv( 4096 )
+        if data:
+            logger.info( "new data from %i (uid %i, gid %i)" % self.clients[source]['cred'] )
+            self.clients[source]['data'] += data
+            print repr(self.clients[source]['data'])
+        else:
+            logger.info( "hangup from %i (uid %i, gid %i)" % self.clients[source]['cred'] )
+            del self.clients[source]
+            source.close()
+            return False
+        if len( data ) < 4:
+            return True
+        size, = struct.unpack('I', data[:4] )
+        if len( data ) < 4 + size:
+            return True
+        address = self.clients[source]['address']
+        cred = self.clients[source]['cred']
+        self.handleCommand( source, address, cred, self.clients[source]['data'][4:] )
+        self.clients[source]['data'] = ""
+        return True
+
+    def handleCommand( self, client, address, cred, data ):
+        command = []
+        while len( data ) >= 4:
+            size, = struct.unpack('I', data[:4] )
+            if len( data ) >= 4 + size:
+                command.append( data[4:4+size] )
+            data = data[4+size:]
+        logger.info( "command from %i (uid %i, gid %i): %s" % (cred[0], cred[1], cred[2], repr( command ) ) )
+        result = struct.pack('I', prototype.requestClone( cred[0], command ) )
+        client.send( result )
+
+    def atexit( self ):
+        os.unlink( SOCKET_PATH )
+
 #=========================================================================#
 class Controller( object ):
 #=========================================================================#
@@ -160,10 +231,12 @@ class Controller( object ):
         self.mainloop = gobject.MainLoop()
         gobject.idle_add( self.idle )
         gobject.timeout_add_seconds( 10, self.timeout )
-        self.bus = dbus.SystemBus()
-        self.busname = dbus.service.BusName( "org.freesmartphone.CloneFactory", self.bus )
-        self.objects = []
-        self.objects.append( CloneFactory( self.bus ) )
+
+        self.socket_api = SocketAPI()
+
+        #self.bus = dbus.SystemBus()
+        #self.busname = dbus.service.BusName( "org.freesmartphone.CloneFactory", self.bus )
+        #self.dbus_api = DBusAPI( self.bus )
 
     def idle( self ):
         logger.info( "in mainloop" )
