@@ -13,7 +13,7 @@ Additional Features:
 GPLv2 or later
 """
 
-__version__ = "2.9.2"
+__version__ = "2.9.3"
 
 import sys, os, serial, threading, termios
 
@@ -429,6 +429,10 @@ class Terminal( object ):
         self.EXITCHARACTER = '\x04' # ctrl+D
         self.fd = None
         self.serial = serial.Serial( port, baudrate, rtscts=rtscts, xonxoff=xonxoff )
+        self.debuglog = None
+
+    def openDebugLog( self, filename ):
+        self.debuglog = open( filename, "w+" )
 
     def setQuietMode( self, quiet ):
         self.quiet = quiet
@@ -517,6 +521,9 @@ class Terminal( object ):
                     elif self.convert == "LF":
                         cmdline += "\n"
                     self.serial.write( cmdline )
+                    if self.debuglog is not None:
+                        self.debuglog.write( "WROTE %s\n" % repr( cmdline ) )
+                        self.debuglog.flush()
                     if self.logging:
                         self.ilog.write( cmdline )
                         self.alog.write( cmdline )
@@ -543,9 +550,15 @@ class Terminal( object ):
 
     def reader( self ):
         while True:
-            data = self.serial.read()
+            data = os.read( self.serial.fd, 4096 )
+            if not len( data ):
+                continue
+            #data = self.serial.read()
             sys.stdout.write(data)
             sys.stdout.flush()
+            if self.debuglog is not None:
+                self.debuglog.write( "READ %s\n" % repr( data ) )
+                self.debuglog.flush()
             if self.logging:
                 self.olog.write( data )
                 self.alog.write( data )
@@ -558,6 +571,10 @@ if __name__ == "__main__":
 %prog [options] [port [baudrate]]
 
 Mickey's Terminal Program.""")
+
+    parser.add_option("-d", "--debugfile", dest="debuglog",
+        help="enable debug log output, specifies file" )
+
 
     parser.add_option("-p", "--port", dest="port",
         help="the port, device path, a portnumber, device name (deprecated option), or MUX (default)",
@@ -667,4 +684,6 @@ Mickey's Terminal Program.""")
     t = Terminal( str(port), baudrate, options.rtscts, options.xonxoff, lineending, inputmode )
     t.setQuietMode( options.quiet )
     t.setLogging( options.log )
+    if options.debuglog is not None:
+        t.openDebugLog( options.debuglog )
     t.run()
