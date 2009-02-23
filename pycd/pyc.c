@@ -14,7 +14,7 @@ void error(const char *msg) {
 }
 
 int main(int argc, char *argv[]) {
-    int i, s, bufsize, bufpos, argsize, pid;
+    int i, s, bufsize, bufpos, argsize, pid, status;
     struct sockaddr_un sa;
     ssize_t len;
     if ((s = socket(AF_UNIX, SOCK_SEQPACKET, 0)) < 0) {
@@ -48,17 +48,21 @@ int main(int argc, char *argv[]) {
     }
 
     if ((len = recv(s, &pid, sizeof(pid), 0)) < 0) {
-        error("ERROR: could not recv");
+        error("ERROR: could not recv pid");
     }
 
     if (len != sizeof(pid)) {
-        fprintf(stderr, "ERROR: invalid reply");
+        fprintf(stderr, "ERROR: invalid reply for pid\n");
     }
 
-    if (waitpid(pid, NULL, 0) < 0) {
-        error("ERROR: could not wait for child");
+    if ((len = recv(s, &status, sizeof(status), 0)) < 0) {
+        error("ERROR: could not recv pid");
     }
 
-    return 0;
+    if (len != sizeof(status) ) {
+        fprintf(stderr, "ERROR: invalid reply for status\n");
+    }
+
+    return status;
 }
 

@@ -15,7 +15,7 @@ import os, socket, sys
 
 import struct
 
-import atexit
+import atexit, errno, signal
 
 import dbus
 import dbus.service
@@ -41,6 +41,7 @@ class Prototype( object ):
         logger.info( "starting prototype" )
         self.down = os.pipe()
         self.up = os.pipe()
+        self.state = os.pipe()
         pid = os.fork()
         if pid:
             self.inParent( pid )
@@ -50,41 +51,73 @@ class Prototype( object ):
 
     def inChild( self ):
         logger.info( "in prototype" )
-        sys.argv[0] = "pycd - prototype"
         os.close( self.down[1] )
         os.close( self.up[0] )
+        os.close( self.state[0] )
         self.down = os.fdopen( self.down[0], 'r', 0 ) # read side
         self.up = os.fdopen( self.up[1], 'w', 0 ) # write side
-        line = self.down.readline().strip()
-        while line:
-            sender, argv = line.split(' ', 1)
+        self.state = os.fdopen( self.state[1], 'w', 0 ) # write side
+        data = ""
+        while True:
+            new = ""
+            signal.signal( signal.SIGCHLD, self.cleanupClone )
+            try:
+                new = os.read(self.down.fileno(), 1024)
+                if not new:
+                    return
+            except OSError, e:
+                if e[0] == errno.EINTR:
+                    continue
+                else:
+                    raise
+            finally:
+                signal.signal( signal.SIGCHLD, signal.SIG_DFL )
+            data += new
+            if not '\n' in data:
+                continue
+            line, data = data.split( '\n', 1 )
+            sender, argv = line.strip().split(' ', 1)
             sender = int( sender )
             argv = eval( argv )
             logger.info( "got command: %s", repr(( sender, argv )) )
             self.doClone( sender, argv )
-            line = self.down.readline().strip()
 
     def inParent( self, child_pid ):
         logger.info( "started prototype (child PID %s)", child_pid )
         os.close( self.down[0] )
         os.close( self.up[1] )
+        os.close( self.state[1] )
         self.down = os.fdopen( self.down[1], 'w', 0) # write side
         self.up = os.fdopen( self.up[0], 'r', 0) # read side
+        self.state = os.fdopen( self.state[0], 'r', 0) # read side
+        self.callbacks = {}
+        gobject.io_add_watch( self.state, gobject.IO_IN, self.handleState )
 
-    def requestClone( self, sender, argv ):
+    def handleState( self, source, condition ):
+        line = self.state.readline().strip()
+        state = eval( line )
+        logger.info( "got state: %s", repr( state ) )
+        cb = self.callbacks.get( state[1], None )
+        if cb:
+            cb[0]( state, cb[1] )
+        return True
+
+    def requestClone( self, sender, argv, cb = None, cb_data = None ):
         self.down.write( "%i %s\n" % ( sender, repr( argv ) ) )
         reply = int( self.up.readline().strip() )
         logger.info( "got reply: %s", repr(reply) )
+        if cb:
+            self.callbacks[reply] = ( cb, cb_data )
         return int( reply )
 
     def doClone( self, sender, argv ):
-        pid = os.fork()
-        if pid:
-            os.waitpid( pid, 0 )
-            return
+        #pid = os.fork()
+        #if pid:
+        #    os.waitpid( pid, 0 )
+        #    return
 
         os.chdir( "/proc/%i/cwd" % sender )
-        os.setsid()
+        #os.setsid()
         os.umask(0)
 
         for line in file( "/proc/%i/status" % sender, 'r' ):
@@ -111,10 +144,12 @@ class Prototype( object ):
 
         pid = os.fork()
         if pid:
-            os._exit(0)
+            return
+            #os._exit(0)
 
         logger.info( "in child" )
         self.down.close()
+        self.state.close()
         MAXFD = os.sysconf( 'SC_OPEN_MAX' )
         for fd in xrange( 3, MAXFD ):
             if fd == self.up.fileno():
@@ -140,6 +175,11 @@ class Prototype( object ):
     def runClone( self, argv ):
         sys.argv = argv
         runpy.run_module(sys.argv[0], run_name="__main__", alter_sys=True)
+
+    def cleanupClone( self, sig, frame ):
+        w = os.wait3( 0 )
+        logger.info( "child quit (pid %i, status %i) " % ( w[0], w[1] ) )
+        self.state.write( "%s\n" % repr( ( "wait", w[0], w[1] ) ) )
 
 #============================================================================#
 class DBusAPI( dbus.service.Object ):
@@ -181,9 +221,9 @@ class SocketAPI( object ):
         logger.info( "new socket connection" )
         client, address = self.socket.accept()
         cred = self.getPeerCred( client )
-        self.clients[client] = { 'address': address, 'cred': cred, 'data': "" }
         logger.info( "accepted connection from %i (uid %i, gid %i)" % cred )
-        gobject.io_add_watch( client, gobject.IO_IN, self.handleClient )
+        watch = gobject.io_add_watch( client, gobject.IO_IN, self.handleClient )
+        self.clients[client] = { 'address': address, 'cred': cred, 'data': "", 'watch': watch }
         return True
 
     def handleClient( self, source, condition ):
@@ -191,7 +231,6 @@ class SocketAPI( object ):
         if data:
             logger.info( "new data from %i (uid %i, gid %i)" % self.clients[source]['cred'] )
             self.clients[source]['data'] += data
-            print repr(self.clients[source]['data'])
         else:
             logger.info( "hangup from %i (uid %i, gid %i)" % self.clients[source]['cred'] )
             del self.clients[source]
@@ -216,8 +255,17 @@ class SocketAPI( object ):
                 command.append( data[4:4+size] )
             data = data[4+size:]
         logger.info( "command from %i (uid %i, gid %i): %s" % (cred[0], cred[1], cred[2], repr( command ) ) )
-        result = struct.pack('I', prototype.requestClone( cred[0], command ) )
+        cpid = prototype.requestClone( cred[0], command, self.handleChildState, client )
+        result = struct.pack('I', cpid )
         client.send( result )
+
+    def handleChildState( self, state, client ):
+        logger.info( "child state changed: %s " % repr( state ) )
+        result = struct.pack('I', state[2] )
+        client.send( result )
+        gobject.source_remove(self.clients[client]['watch'])
+        del self.clients[client]
+        client.close()
 
     def atexit( self ):
         os.unlink( SOCKET_PATH )
