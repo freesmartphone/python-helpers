@@ -13,7 +13,7 @@ Additional Features:
 GPLv2 or later
 """
 
-__version__ = "2.9.3"
+__version__ = "2.9.4"
 
 import sys, os, serial, threading, termios
 
@@ -453,7 +453,7 @@ class Terminal( object ):
         self.r.setDaemon( True )
         self.r.start()
         # optional
-        self.serial.write( "AT+CMEE=2;+CRC=1\r\n" )
+        # self.serial.write( "AT+CMEE=2;+CRC=1\r\n" )
         self.writer()
         self.banner( False )
         self.serial.close()
@@ -656,20 +656,30 @@ Mickey's Terminal Program.""")
         if args:
             parser.error("too many arguments")
     else:
+
         if port is "MUX":
-            # try to get portname from old-style MUXer
             import dbus
             bus = dbus.SystemBus()
-            oMuxer = bus.get_object( "org.pyneo.muxer", "/org/pyneo/Muxer" )
-            iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
-            port = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid() )
-            assert port, "could not get path from gsm0710muxd. need to supply explicit portname"
+
+            useAbyss = ( "org.freesmartphone.omuxerd" in bus.list_names() )
+            if useAbyss:
+                oMuxer = bus.get_object( "org.freesmartphone.omuxerd", "/org/freesmartphone/GSM/Muxer" )
+                iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
+                port, channel = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid(), 0 ) # grab next free one
+                assert port, "could not get path from fso-abyss. need to supply explicit portname"
+            else:
+                oMuxer = bus.get_object( "org.pyneo.muxer", "/org/pyneo/Muxer" )
+                iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
+                port = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid() )
+                assert port, "could not get path from gsm0710muxd. need to supply explicit portname"
 
         elif port.startswith( "fso" ):
-            fso, channel = port.split( ':', 1 )
-            number = int( channel )
             import dbus
             bus = dbus.SystemBus()
+
+            fso, channel = port.split( ':', 1 )
+            number = int( channel )
+
             oMuxer = bus.get_object( "org.freesmartphone.omuxerd", "/org/freesmartphone/GSM/Muxer" )
             iMuxer = dbus.Interface( oMuxer, "org.freesmartphone.GSM.MUX" )
             port, channel = iMuxer.AllocChannel( "mickeyterm.%d" % os.getpid(), number )

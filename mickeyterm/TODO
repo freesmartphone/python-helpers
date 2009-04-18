@@ -3,11 +3,11 @@ for version 2.9.7:
 
 for version 2.9.8:
  - gracefully exit
- - if a port disappears, try to reopen it
+ - if a port disappears, try to reopen it (once)
 
 for version 2.9.9:
  - remove threads in favour of G mainloop?
- - rewrite in Vala?
+ - rewrite in Vala
 
 for version 3.1:
  - ncurses mode
