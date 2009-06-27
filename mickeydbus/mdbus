@@ -166,13 +166,6 @@ def process_introspection_data(data):
 #----------------------------------------------------------------------------#
 def dbus_to_python(v):
 #----------------------------------------------------------------------------#
-    class ObjectPath( object ):
-        def __init__( self, path ):
-            self.path = str( path )
-
-        def __repr__( self ):
-            return "op%s" % repr(self.path)
-
     if isinstance(v, dbus.Byte) \
         or isinstance(v, dbus.Int64) \
         or isinstance(v, dbus.UInt64) \
@@ -184,7 +177,7 @@ def dbus_to_python(v):
         return int(v)
     elif isinstance(v, dbus.Double) or type(v) == types.FloatType:
         return float(v)
-    elif isinstance(v, dbus.String) or type(v) == types.StringType:
+    elif isinstance(v, dbus.String) or isinstance(v, dbus.ObjectPath) or type(v) == types.StringType:
         return str(v)
     elif isinstance(v, dbus.Dictionary) or type(v) == types.DictType:
         return dict( (dbus_to_python(k), dbus_to_python(v)) for k,v in v.iteritems() )
@@ -194,8 +187,6 @@ def dbus_to_python(v):
         return tuple(dbus_to_python(x) for x in v)
     elif isinstance(v, dbus.Boolean) or type(v) == types.BooleanType:
         return bool(v)
-    elif isinstance(v, dbus.ObjectPath) or type(v) == ObjectPath:
-        return ObjectPath(v)
     else:
         raise TypeError("Can't convert type %s to python object" % type(v))
 
