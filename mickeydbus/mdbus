@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Mickey's own dbus introspection utility.
 
@@ -7,7 +8,7 @@ Mickey's own dbus introspection utility.
 GPLv2 or later
 """
 
-__version__ = "0.9.9.10"
+__version__ = "1.0.0"
 
 from xml.parsers.expat import ExpatError, ParserCreate
 from dbus.exceptions import IntrospectionParserException
@@ -253,7 +254,7 @@ class Commands( object ):
             try:
                 result = method( timeout=100000, *parameters )
             except dbus.DBusException, e:
-                print "%s: %s failed: %s" % ( objname, methodname, e.get_dbus_name() )
+                print "%s: %s failed: %s (%s)" % ( objname, methodname, e.get_dbus_name(), e.get_dbus_message() )
             except TypeError, e:
                 pass # python will emit its own error here
             else:
@@ -483,4 +484,4 @@ if __name__ == "__main__":
             else:
                 parameters.append( parameter )
 
-        c.callMethod( busname, objname, methodname, parameters )
+            c.callMethod( busname, objname, methodname, parameters )

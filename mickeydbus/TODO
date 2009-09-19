@@ -1,8 +1,5 @@
-for 1.0:
- * fix bugs
- * before starting to listen, check out whether the requested busname/objname actually exists
-
 for 1.1:
+ * before starting to listen, check out whether the requested busname/objname actually exists
  * improve usability for scripting
  * mode to simplify output
  * mode to wait for a signal, then dump via stdout
