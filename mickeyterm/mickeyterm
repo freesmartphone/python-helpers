@@ -537,11 +537,11 @@ class Terminal( object ):
                     break
                 elif c == '\n':
                     if self.convert == "CRLF":
-                        self.serial.write('\r\n')
+                        self.serial.write( '\r\n' )
                     elif self.convert == "CR":
-                        self.serial.write('\r')
+                        self.serial.write( '\r' )
                     elif self.convert == "LF":
-                        self.serial.write('\n')
+                        self.serial.write( '\n' )
                 else:
                     self.serial.write(c)
                     if self.logging:
@@ -549,20 +549,23 @@ class Terminal( object ):
                         self.alog.write( c )
 
     def reader( self ):
-        while True:
-            data = os.read( self.serial.fd, 4096 )
-            if not len( data ):
-                continue
-            #data = self.serial.read()
-            sys.stdout.write(data)
-            sys.stdout.flush()
-            if self.debuglog is not None:
-                self.debuglog.write( "READ %s\n" % repr( data ) )
-                self.debuglog.flush()
-            if self.logging:
-                self.olog.write( data )
-                self.alog.write( data )
-
+        try:
+            while True:
+                data = os.read( self.serial.fd, 4096 )
+                if not len( data ):
+                    continue
+                #data = self.serial.read()
+                sys.stdout.write(data)
+                sys.stdout.flush()
+                if self.debuglog is not None:
+                    self.debuglog.write( "READ %s\n" % repr( data ) )
+                    self.debuglog.flush()
+                if self.logging:
+                    self.olog.write( data )
+                    self.alog.write( data )
+        except OSError, e:
+            sys.stderr.write( "Unable to read anymore: Exiting\n" )
+            sys.exit( 0 )
 
 if __name__ == "__main__":
     import optparse
